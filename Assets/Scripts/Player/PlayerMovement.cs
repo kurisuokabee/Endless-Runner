@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Lane Settings")]
-    [SerializeField] private float laneMoveSpeed = 8f;
+    [SerializeField] private float laneMoveDuration = 1f;
 
     [Header("Jump Settings")]
     [SerializeField] private float jumpHeight = 2f;
@@ -21,6 +21,11 @@ public class PlayerMovement : MonoBehaviour
 
     public bool IsJumping => isJumping;
     public float BaseY => baseY;
+
+    private float laneMoveTimer;
+    private float laneStartX;
+    private float laneTargetX;
+    private bool isMovingLane;
 
     private void Start()
     {
@@ -55,12 +60,14 @@ public class PlayerMovement : MonoBehaviour
             Keyboard.current.leftArrowKey.wasPressedThisFrame)
         {
             currentLane = Mathf.Max(0, currentLane - 1);
+            StartLaneMovement();
         }
 
         if (Keyboard.current.dKey.wasPressedThisFrame ||
             Keyboard.current.rightArrowKey.wasPressedThisFrame)
         {
             currentLane = Mathf.Min(2, currentLane + 1);
+            StartLaneMovement();
         }
     }
 
@@ -78,22 +85,51 @@ public class PlayerMovement : MonoBehaviour
 
     private void MoveToLane()
     {
-        PerspectiveSettings settings = PerspectiveSettings.Instance;
-
-        if (settings == null)
+        if (!isMovingLane)
             return;
 
-        float targetX = settings.GetPlayerLaneX(currentLane);
+        PerspectiveSettings settings = PerspectiveSettings.Instance;
+        if (settings == null) return;
 
-        Vector3 position = transform.position;
+        laneMoveTimer += Time.deltaTime;
 
-        position.x = Mathf.Lerp(
-            position.x,
-            targetX,
-            laneMoveSpeed * Time.deltaTime
+        float progress = Mathf.Clamp01(laneMoveTimer / laneMoveDuration);
+        float easedProgress = EaseInOutQuad(progress);
+
+        float newX = Mathf.Lerp(
+            laneStartX,
+            laneTargetX,
+            easedProgress
         );
 
-        transform.position = position;
+        transform.position = new Vector3(
+            newX,
+            transform.position.y,
+            transform.position.z
+        );
+
+        if (progress >= 1f)
+        {
+            isMovingLane = false;
+        }
+    }
+
+    private float EaseInOutQuad(float t)
+    {
+        return t < 0.5f
+            ? 2f * t * t
+            : 1f - Mathf.Pow(-2f * t + 2f, 2f) / 2f;
+    }
+    private void StartLaneMovement()
+    {
+        PerspectiveSettings settings = PerspectiveSettings.Instance;
+        if (settings == null) return;
+
+        laneStartX = transform.position.x;
+        laneTargetX = settings.GetPlayerLaneX(currentLane);
+
+        laneMoveTimer = 0f;
+        isMovingLane = true;
     }
 
     private void UpdateJump()
@@ -121,4 +157,5 @@ public class PlayerMovement : MonoBehaviour
         position.y = baseY + CurrentJumpHeight;
         transform.position = position;
     }
+
 }
